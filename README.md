@@ -26,7 +26,7 @@ Everything you hear is synthesized live in the browser. MoodWave plays no audio 
 |------|------|-------|------|-------|--------|
 | 😴 Sleep | 150 Hz | 153 Hz | 3 Hz · Delta | 45 BPM (1 beat = 4 cycles): drifting bells over D minor → B♭ → F → C, deep sub-bass, no drums | Slow indigo/violet ribbons and drifting motes |
 | 🌊 Relax | 150 Hz | 156 Hz | 6 Hz · Theta | 60 BPM (6 cycles): electric-piano chords, a gentle arpeggio, soft shaker | Mirrored teal waves woven with the live waveform |
-| 🎯 Study | 150 Hz | 162 Hz | 12 Hz · Alpha | 90 BPM (8 cycles): swung lo-fi beat, jazzy 9th chords, walking bass | Retro scope grid, spectrum bars, pulsing trace |
+| 🎯 Study | 150 Hz | 162 Hz | 12 Hz · Alpha | 90 BPM (8 cycles): swung lo-fi beat, jazzy 9th chords, warm bass | Retro scope grid, spectrum bars, pulsing trace |
 | ⚡ Amp Up | 150 Hz | 185 Hz | 35 Hz · Gamma | 131.25 BPM (16 cycles): synthwave four-on-the-floor, pumping bass, 16th-note arpeggio | Jagged radial spikes, lightning lines, screen shake |
 | 💗 Intimate | 150 Hz | 157.83 Hz | 7.83 Hz · Schumann | 78.3 BPM (6 cycles): slow R&B groove, strummed maj7 chords, plus the 528 Hz / 264 Hz swell | Morphing magenta-and-gold rose curves and sine rings |
 

@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: moodwave
+    runtime: static
+    buildCommand: echo "No build step"
+    staticPublishPath: .
+    autoDeploy: true

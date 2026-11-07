@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#05030f" />
+  <meta name="description" content="MoodWave: a binaural-beat mood synthesizer with a retro neon visualizer." />
+  <title>MoodWave</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ["Orbitron", "sans-serif"],
+            mono: ['"Share Tech Mono"', "ui-monospace", "monospace"],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html, body { background: #05030f; }
+    .skin {
+      background: linear-gradient(160deg, #2b3049 0%, #151829 42%, #0a0c17 100%);
+    }
+    .scanlines {
+      pointer-events: none;
+      background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px);
+      mix-blend-mode: multiply;
+    }
+    input[type="range"].vol {
+      -webkit-appearance: none; appearance: none;
+      height: 6px; border-radius: 999px; outline: none; cursor: pointer;
+      background: linear-gradient(90deg, var(--accent) var(--pct), rgba(255,255,255,0.12) var(--pct));
+    }
+    input[type="range"].vol::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 12px var(--accent);
+    }
+    input[type="range"].vol::-moz-range-thumb {
+      width: 18px; height: 18px; border: 0; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 12px var(--accent);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .animate-ping { animation: none; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#05030f] text-white antialiased">
+  <div id="root"></div>
+  <noscript>MoodWave needs JavaScript enabled.</noscript>
+
+  <script type="module">
+    import React, { useState, useEffect, useRef, useCallback } from "https://esm.sh/react@18.3.1";
+    import { createRoot } from "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1";
+    import htm from "https://esm.sh/htm@3.1.1";
+
+    const html = htm.bind(React.createElement);
+
+    /* =====================================================================
+       MOOD DEFINITIONS
+       left/right = binaural carrier pair (Hz). audio = synth layer settings.
+       ===================================================================== */
+    const MOOD_ORDER = ["sleep", "relax", "study", "amp", "intimate"];
+
+    const MOODS = {
+      sleep: {
+        label: "Sleep", band: "Delta", beat: 3, left: 150, right: 153,
+        tagline: "Slow indigo drift",
+        gradient: "from-indigo-950 via-violet-900 to-purple-700",
+        glow: "#8b5cf6", accent: "#a78bfa",
+        audio: {
+          tone: 0.1, chord: [73.42, 110, 146.83, 174.61], padType: "sine",
+          pad: 0.1, cutoff: 420, sweepRate: 0.03, sweepDepth: 120,
+          noise: 0.05, noiseCutoff: 600,
+        },
+      },
+      relax: {
+        label: "Relax", band: "Theta", beat: 6, left: 150, right: 156,
+        tagline: "Tidal teal flow",
+        gradient: "from-teal-950 via-cyan-800 to-sky-600",
+        glow: "#22d3ee", accent: "#67e8f9",
+        audio: {
+          tone: 0.1, chord: [73.42, 110, 185, 277.18], padType: "triangle",
+          pad: 0.08, cutoff: 850, sweepRate: 0.05, sweepDepth: 300,
+          noise: 0.035, noiseCutoff: 1200,
+        },
+      },
+      study: {
+        label: "Study", band: "Alpha", beat: 12, left: 150, right: 162,
+        tagline: "Clear green focus",
+        gradient: "from-emerald-950 via-green-800 to-lime-600",
+        glow: "#34d399", accent: "#6ee7b7",
+        audio: {
+          tone: 0.09, chord: [73.42, 110, 164.81, 220], padType: "triangle",
+          pad: 0.06, cutoff: 1100, sweepRate: 0.08, sweepDepth: 250,
+          noise: 0.025, noiseCutoff: 2500,
+        },
+      },
+      amp: {
+        label: "Amp Up", band: "Gamma", beat: 35, left: 150, right: 185,
+        tagline: "Molten high voltage",
+        gradient: "from-red-950 via-orange-700 to-amber-500",
+        glow: "#f97316", accent: "#fdba74",
+        audio: {
+          tone: 0.09, chord: [73.42, 110, 146.83, 220], padType: "sawtooth",
+          pad: 0.045, cutoff: 1600, sweepRate: 0.25, sweepDepth: 900,
+          noise: 0.02, noiseCutoff: 4000,
+          pulse: { rate: 4.333, depth: 0.45 }, // ~130 BPM eighth-note tremolo
+        },
+      },
+      intimate: {
+        label: "Intimate", band: "Schumann", beat: 7.83, left: 150, right: 157.83,
+        tagline: "Magenta & gold bloom",
+        gradient: "from-fuchsia-950 via-pink-700 to-amber-400",
+        glow: "#ec4899", accent: "#f9a8d4",
+        audio: {
+          tone: 0.09, chord: [87.31, 130.81, 164.81, 220], padType: "triangle",
+          pad: 0.07, cutoff: 750, sweepRate: 0.04, sweepDepth: 220,
+          noise: 0.03, noiseCutoff: 900,
+          // 528 Hz anchor + 264 Hz sub-harmonic, each amplitude-swelled by a slow LFO
+          anchor: { freq: 528, level: 0.03, rate: 0.07 },
+        },
+      },
+    };
+
+    /* =====================================================================
+       AUDIO ENGINE (native Web Audio API)
+       voice → mix → analyser → master(volume) → limiter → speakers
+       ===================================================================== */
+    const FADE = 2.5; // seconds for mood crossfades
+    const volCurve = (v) => v * v; // perceptual volume curve
+
+    function makePinkNoise(ctx, seconds) {
+      const len = Math.floor(ctx.sampleRate * seconds);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1; // Paul Kellet's pink filter
+        b0 = 0.99886 * b0 + w * 0.0555179;
+        b1 = 0.99332 * b1 + w * 0.0750759;
+        b2 = 0.969 * b2 + w * 0.153852;
+        b3 = 0.8665 * b3 + w * 0.3104856;
+        b4 = 0.55 * b4 + w * 0.5329522;
+        b5 = -0.7616 * b5 - w * 0.016898;
+        d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+        b6 = w * 0.115926;
+      }
+      return buf;
+    }
+
+    function buildVoice(engine, mood) {
+      const ctx = engine.ctx;
+      const a = mood.audio;
+      const t = ctx.currentTime + 0.02;
+      const sources = [];
+
+      const out = ctx.createGain();
+      out.gain.setValueAtTime(0, t);
+      out.gain.linearRampToValueAtTime(1, t + FADE);
+      out.connect(engine.mix);
+
+      const osc = (type, freq) => {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = freq;
+        sources.push(o);
+        return o;
+      };
+      const gain = (v) => {
+        const g = ctx.createGain();
+        g.gain.value = v;
+        return g;
+      };
+
+      // 1) Binaural pair, hard-panned: left carrier → channel 0, right → channel 1
+      const merger = ctx.createChannelMerger(2);
+      osc("sine", mood.left).connect(gain(a.tone)).connect(merger, 0, 0);
+      osc("sine", mood.right).connect(gain(a.tone)).connect(merger, 0, 1);
+      merger.connect(out);
+
+      // 2) Warm detuned pad through a slowly sweeping low-pass filter
+      const padFilter = ctx.createBiquadFilter();
+      padFilter.type = "lowpass";
+      padFilter.frequency.value = a.cutoff;
+      padFilter.Q.value = 0.7;
+      const padGain = gain(a.pad);
+      const per = 1 / (a.chord.length * 2);
+      a.chord.forEach((f, i) => {
+        [-1, 1].forEach((side) => {
+          const o = osc(a.padType, f);
+          o.detune.value = side * (6 + i * 1.5);
+          const g = gain(per);
+          o.connect(g);
+          if (ctx.createStereoPanner) {
+            const p = ctx.createStereoPanner();
+            p.pan.value = side * 0.35;
+            g.connect(p).connect(padFilter);
+          } else {
+            g.connect(padFilter);
+          }
+        });
+      });
+      osc("sine", a.sweepRate).connect(gain(a.sweepDepth)).connect(padFilter.frequency);
+      if (a.pulse) {
+        padGain.gain.value = a.pad * (1 - a.pulse.depth / 2);
+        osc("sine", a.pulse.rate).connect(gain((a.pad * a.pulse.depth) / 2)).connect(padGain.gain);
+      }
+      padFilter.connect(padGain).connect(out);
+
+      // 3) Filtered pink-noise bed
+      const noise = ctx.createBufferSource();
+      noise.buffer = engine.noiseBuffer;
+      noise.loop = true;
+      sources.push(noise);
+      const nf = ctx.createBiquadFilter();
+      nf.type = "lowpass";
+      nf.frequency.value = a.noiseCutoff;
+      noise.connect(nf).connect(gain(a.noise)).connect(out);
+
+      // 4) Intimate only: 528 Hz anchor + 264 Hz sub-harmonic, slow amplitude swell
+      if (a.anchor) {
+        const { freq, level, rate } = a.anchor;
+        [[freq, level, rate], [freq / 2, level * 1.4, rate * 0.73]].forEach(([f, lv, r]) => {
+          const am = gain(lv / 2); // base level; LFO swings it between 0 and lv
+          osc("sine", f).connect(am).connect(out);
+          osc("sine", r).connect(gain(lv / 2)).connect(am.gain);
+        });
+      }
+
+      sources.forEach((s) =>
+        s === noise ? s.start(t, Math.random() * noise.buffer.duration) : s.start(t)
+      );
+
+      return {
+        stop() {
+          const now = ctx.currentTime;
+          out.gain.cancelScheduledValues(now);
+          out.gain.setValueAtTime(out.gain.value, now);
+          out.gain.linearRampToValueAtTime(0, now + FADE);
+          sources.forEach((s) => {
+            try { s.stop(now + FADE + 0.05); } catch (_) {}
+          });
+          sources[0].onended = () => out.disconnect();
+        },
+      };
+    }
+
+    class MoodEngine {
+      constructor() {
+        this.ctx = null;
+        this.voice = null;
+        this.volume = 0.6;
+        this.playing = false;
+        this.suspendTimer = null;
+      }
+
+      // Must run inside a user gesture (click/tap) for autoplay policies
+      init() {
+        if (this.ctx) return;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) throw new Error("This browser does not support the Web Audio API.");
+        const ctx = new AC({ latencyHint: "playback" });
+        this.ctx = ctx;
+
+        this.mix = ctx.createGain();
+        this.analyser = ctx.createAnalyser();
+        this.analyser.fftSize = 2048;
+        this.analyser.smoothingTimeConstant = 0.8;
+        this.master = ctx.createGain();
+        this.master.gain.value = 0;
+
+        const limiter = ctx.createDynamicsCompressor();
+        limiter.threshold.value = -10;
+        limiter.knee.value = 6;
+        limiter.ratio.value = 12;
+        limiter.attack.value = 0.003;
+        limiter.release.value = 0.25;
+
+        // Analyser sits before master volume so visuals stay alive at low volume
+        this.mix.connect(this.analyser);
+        this.analyser.connect(this.master);
+        this.master.connect(limiter);
+        limiter.connect(ctx.destination);
+
+        this.noiseBuffer = makePinkNoise(ctx, 8);
+      }
+
+      setMood(mood) {
+        this.init();
+        if (this.voice) this.voice.stop();
+        this.voice = buildVoice(this, mood);
+      }
+
+      setVolume(v) {
+        this.volume = v;
+        if (!this.ctx || !this.playing) return;
+        const g = this.master.gain;
+        const now = this.ctx.currentTime;
+        g.cancelScheduledValues(now);
+        g.setTargetAtTime(volCurve(v), now, 0.05);
+      }
+
+      async play() {
+        this.init();
+        this.playing = true;
+        clearTimeout(this.suspendTimer);
+        const ctx = this.ctx;
+        if (ctx.state !== "running") await ctx.resume();
+        const now = ctx.currentTime;
+        const g = this.master.gain;
+        g.cancelScheduledValues(now);
+        g.setValueAtTime(g.value, now);
+        g.linearRampToValueAtTime(volCurve(this.volume), now + 0.6);
+      }
+
+      pause() {
+        if (!this.ctx) return;
+        this.playing = false;
+        const now = this.ctx.currentTime;
+        const g = this.master.gain;
+        g.cancelScheduledValues(now);
+        g.setValueAtTime(g.value, now);
+        g.linearRampToValueAtTime(0, now + 0.35);
+        clearTimeout(this.suspendTimer);
+        this.suspendTimer = setTimeout(() => {
+          if (!this.playing) this.ctx.suspend();
+        }, 450);
+      }
+    }
+
+    /* =====================================================================
+       VISUALIZER: one draw routine per mood. Canvas uses additive
+       ("lighter") blending + translucent trail fills for that WMP glow.
+       a = { freq, time, bass, mid, high, level, pulse }
+       pulse tracks the binaural beat envelope (visible in the mono analysis).
+       ===================================================================== */
+    function drawIdle(c, w, h, t, a) {
+      c.shadowColor = "#64748b";
+      c.shadowBlur = 8;
+      c.beginPath();
+      const step = Math.max(4, w / 160);
+      for (let x = 0; x <= w; x += step) {
+        const nx = x / w;
+        const y = h / 2 + Math.sin(nx * Math.PI * 4 + t * 0.8) * h * 0.06 * (0.6 + a.pulse * 0.4);
+        x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      }
+      c.strokeStyle = "rgba(148,163,184,0.35)";
+      c.lineWidth = 2;
+      c.stroke();
+    }
+
+    function drawSleep(c, w, h, t, a) {
+      const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.55);
+      g.addColorStop(0, `rgba(91,33,182,${0.025 + a.pulse * 0.03})`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, h);
+
+      const step = Math.max(4, w / 160);
+      for (let i = 0; i < 5; i++) {
+        const phase = t * 0.25 + i * 1.3;
+        const amp = h * (0.08 + 0.012 * i) * (0.6 + a.bass * 0.8) * (0.85 + a.pulse * 0.35);
+        c.beginPath();
+        for (let x = 0; x <= w; x += step) {
+          const nx = x / w;
+          const y =
+            h / 2 + (i - 2) * h * 0.05 +
+            Math.sin(nx * Math.PI * (1.2 + i * 0.35) + phase) * amp +
+            Math.sin(nx * Math.PI * 3.1 - phase * 0.7) * amp * 0.35;
+          x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+        }
+        const hue = 248 + i * 9;
+        c.shadowColor = `hsl(${hue},90%,60%)`;
+        c.shadowBlur = i === 2 ? 14 : 0;
+        c.strokeStyle = `hsla(${hue},85%,${55 + i * 4}%,0.3)`;
+        c.lineWidth = 2 + (4 - i) * 0.8;
+        c.stroke();
+      }
+      c.shadowBlur = 0;
+      for (let i = 0; i < 16; i++) {
+        const x = (i * 97 + t * 6 * (1 + (i % 3))) % w;
+        const y = h / 2 + Math.sin(t * 0.2 + i * 1.7) * h * 0.38;
+        c.fillStyle = "rgba(196,181,253,0.35)";
+        c.beginPath();
+        c.arc(x, y, 1.3, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+
+    function drawRelax(c, w, h, t, a) {
+      const N = a.time.length;
+      const pts = 120;
+      for (let layer = 0; layer < 3; layer++) {
+        for (let mirror = 0; mirror < 2; mirror++) {
+          c.beginPath();
+          for (let i = 0; i <= pts; i++) {
+            const nx = i / pts;
+            const td = (a.time[Math.floor(nx * (N - 1))] - 128) / 128;
+            const wave =
+              Math.sin(nx * Math.PI * 2 * 1.5 + t * 0.6 + layer * 2) * h * 0.13 * (0.7 + a.pulse * 0.45) +
+              Math.sin(nx * Math.PI * 5 - t * 0.9 + layer) * h * 0.03 +
+              td * h * 0.05;
+            const y = h / 2 + (mirror ? -wave * 0.6 : wave) + (layer - 1) * h * 0.04;
+            i === 0 ? c.moveTo(nx * w, y) : c.lineTo(nx * w, y);
+          }
+          const hue = 172 + layer * 14;
+          c.shadowColor = `hsl(${hue},95%,60%)`;
+          c.shadowBlur = layer === 1 && !mirror ? 14 : 0;
+          c.strokeStyle = `hsla(${hue},90%,60%,${mirror ? 0.15 : 0.4})`;
+          c.lineWidth = mirror ? 1.5 : 2.5;
+          c.stroke();
+        }
+      }
+    }
+
+    function drawStudy(c, w, h, t, a) {
+      c.shadowBlur = 0;
+      c.strokeStyle = "rgba(52,211,153,0.025)";
+      c.lineWidth = 1;
+      for (let x = 0; x < w; x += 40) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
+      for (let y = 0; y < h; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
+
+      const bars = w < 500 ? 40 : 72;
+      const bw = w / bars;
+      for (let i = 0; i < bars; i++) {
+        const idx = Math.floor(Math.pow(i / bars, 1.6) * 300) + 1;
+        const v = a.freq[idx] / 255;
+        const bh = (0.04 + v) * h * 0.32 * (0.85 + 0.15 * Math.sin(t * 2 + i * 0.35));
+        c.fillStyle = `hsla(${145 + i * 0.6},85%,55%,0.22)`;
+        c.fillRect(i * bw + 1, h / 2 - bh, Math.max(1, bw - 2), bh * 2);
+      }
+
+      // steady "alpha" scope trace that pulses with the beat
+      c.beginPath();
+      const step = Math.max(3, w / 220);
+      for (let x = 0; x <= w; x += step) {
+        const nx = x / w;
+        const y = h / 2 + Math.sin(nx * Math.PI * 8 + t * 3) * h * 0.16 * (0.4 + a.pulse * 0.6);
+        x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      }
+      c.shadowColor = "#a3e635";
+      c.shadowBlur = 12;
+      c.strokeStyle = "rgba(190,242,100,0.55)";
+      c.lineWidth = 2;
+      c.stroke();
+    }
+
+    function drawAmp(c, w, h, t, a) {
+      const m = Math.min(w, h);
+      const shake = a.level * 14 * (Math.random() - 0.5);
+      c.save();
+      c.translate(w / 2 + shake, h / 2 + shake * 0.6);
+      const spikes = 120;
+      const R = m * 0.12 * (1 + a.bass * 0.4);
+      c.beginPath();
+      for (let i = 0; i <= spikes; i++) {
+        const ang = (i / spikes) * Math.PI * 2 + t * 0.9;
+        const v = a.freq[((i * 3) % 200) + 2] / 255;
+        const len = R + (v * 0.9 + Math.random() * 0.35 * (0.4 + a.level)) * m * 0.32 * (i % 2 ? 1 : 0.45);
+        const x = Math.cos(ang) * len;
+        const y = Math.sin(ang) * len;
+        i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      }
+      c.closePath();
+      c.shadowColor = "#f97316";
+      c.shadowBlur = 16;
+      c.strokeStyle = "rgba(251,146,60,0.75)";
+      c.lineWidth = 2;
+      c.stroke();
+      c.shadowBlur = 0;
+      c.beginPath();
+      for (let i = 0; i <= 48; i++) {
+        const ang = (i / 48) * Math.PI * 2 - t * 2.2;
+        const r = R * (0.55 + Math.random() * 0.35);
+        i === 0 ? c.moveTo(Math.cos(ang) * r, Math.sin(ang) * r) : c.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+      }
+      c.closePath();
+      c.strokeStyle = "rgba(239,68,68,0.7)";
+      c.stroke();
+      c.restore();
+
+      for (let k = 0; k < 2; k++) {
+        const base = h * (0.18 + k * 0.64);
+        c.beginPath();
+        const seg = w / 40;
+        for (let x = 0; x <= w + 1; x += seg) {
+          const y = base + (Math.random() - 0.5) * h * 0.16 * (0.4 + a.level * 1.5);
+          x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+        }
+        c.strokeStyle = k ? "rgba(250,204,21,0.45)" : "rgba(255,80,0,0.5)";
+        c.lineWidth = 1.5;
+        c.stroke();
+      }
+    }
+
+    function drawIntimate(c, w, h, t, a) {
+      const cx = w / 2, cy = h / 2;
+      const R = Math.min(w, h) * 0.32;
+
+      const g = c.createRadialGradient(cx, cy, 0, cx, cy, R * 1.4);
+      g.addColorStop(0, `rgba(236,72,153,${0.03 + a.pulse * 0.04})`);
+      g.addColorStop(0.6, `rgba(251,191,36,${0.01 + a.pulse * 0.015})`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, h);
+
+      const k = 2.5 + 1.5 * Math.sin(t * 0.12); // morphing petal count
+      const colors = ["rgba(236,72,153,0.38)", "rgba(251,191,36,0.32)", "rgba(217,70,239,0.28)"];
+      for (let layer = 0; layer < 3; layer++) {
+        const rot = t * 0.15 * (layer % 2 ? -1 : 1);
+        c.beginPath();
+        const steps = 480;
+        for (let i = 0; i <= steps; i++) {
+          const th = (i / steps) * Math.PI * 4;
+          const r = R * (0.55 + 0.45 * Math.cos(k * th + t * 0.4 + layer)) * (0.82 + a.pulse * 0.18 + layer * 0.08);
+          const x = cx + r * Math.cos(th + rot);
+          const y = cy + r * Math.sin(th + rot);
+          i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+        }
+        c.shadowColor = layer === 1 ? "#fbbf24" : "#ec4899";
+        c.shadowBlur = layer === 0 ? 14 : 0;
+        c.strokeStyle = colors[layer];
+        c.lineWidth = 1.6;
+        c.stroke();
+      }
+
+      c.shadowBlur = 0;
+      c.beginPath();
+      for (let i = 0; i <= 240; i++) {
+        const th = (i / 240) * Math.PI * 2;
+        const r = R * 1.15 +
+          Math.sin(th * 6 + t * 0.8) * R * 0.08 * (0.5 + a.pulse) +
+          Math.sin(th * 11 - t * 0.5) * R * 0.03;
+        const x = cx + r * Math.cos(th);
+        const y = cy + r * Math.sin(th);
+        i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      }
+      c.closePath();
+      c.strokeStyle = "rgba(253,224,71,0.3)";
+      c.lineWidth = 1.2;
+      c.stroke();
+    }
+
+    const VIS = {
+      idle: { trail: "rgba(4,4,10,0.15)", draw: drawIdle },
+      sleep: { trail: "rgba(6,3,22,0.08)", draw: drawSleep },
+      relax: { trail: "rgba(2,14,20,0.1)", draw: drawRelax },
+      study: { trail: "rgba(2,12,8,0.22)", draw: drawStudy },
+      amp: { trail: "rgba(18,3,0,0.28)", draw: drawAmp },
+      intimate: { trail: "rgba(20,3,16,0.08)", draw: drawIntimate },
+    };
+
+    function Visualizer({ engine, moodRef, playingRef }) {
+      const wrapRef = useRef(null);
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        const wrap = wrapRef.current;
+        const canvas = canvasRef.current;
+        const c = canvas.getContext("2d");
+        let w = 1, h = 1, raf = 0;
+
+        const resize = () => {
+          const r = wrap.getBoundingClientRect();
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          w = Math.max(1, r.width);
+          h = Math.max(1, r.height);
+          canvas.width = Math.round(w * dpr);
+          canvas.height = Math.round(h * dpr);
+          c.setTransform(dpr, 0, 0, dpr, 0, 0);
+          c.fillStyle = "#000";
+          c.fillRect(0, 0, w, h);
+        };
+        const ro = new ResizeObserver(resize);
+        ro.observe(wrap);
+        resize();
+
+        const freq = new Uint8Array(1024);
+        const time = new Uint8Array(2048);
+        let peak = 1e-4, t = 0, last = performance.now();
+
+        const avg = (s, e) => {
+          let sum = 0;
+          for (let i = s; i < e; i++) sum += freq[i];
+          return sum / ((e - s) * 255);
+        };
+
+        const frame = (now) => {
+          const dt = Math.min(0.05, (now - last) / 1000);
+          last = now;
+          t += dt;
+
+          const id = moodRef.current || "idle";
+          const vis = VIS[id];
+          let a;
+
+          if (engine.analyser && playingRef.current) {
+            engine.analyser.getByteFrequencyData(freq);
+            engine.analyser.getByteTimeDomainData(time);
+            let rms = 0;
+            for (let i = 0; i < time.length; i++) {
+              const v = (time[i] - 128) / 128;
+              rms += v * v;
+            }
+            rms = Math.sqrt(rms / time.length);
+            peak = Math.max(rms, peak * 0.996);
+            a = {
+              freq, time,
+              bass: avg(1, 14), mid: avg(14, 90), high: avg(90, 400),
+              level: Math.min(1, rms * 4),
+              pulse: rms / peak,
+            };
+          } else {
+            freq.fill(0);
+            time.fill(128);
+            a = {
+              freq, time,
+              bass: 0.15 + 0.05 * Math.sin(t), mid: 0.1, high: 0.05,
+              level: 0.2 + 0.1 * Math.sin(t * 0.8),
+              pulse: 0.5 + 0.5 * Math.sin(t * 1.5),
+            };
+          }
+
+          c.shadowBlur = 0;
+          c.globalCompositeOperation = "source-over";
+          c.fillStyle = vis.trail;
+          c.fillRect(0, 0, w, h);
+
+          c.globalCompositeOperation = "lighter";
+          c.lineJoin = "round";
+          c.lineCap = "round";
+          vis.draw(c, w, h, t, a);
+          c.shadowBlur = 0;
+          c.globalCompositeOperation = "source-over";
+
+          raf = requestAnimationFrame(frame);
+        };
+        raf = requestAnimationFrame(frame);
+
+        return () => {
+          cancelAnimationFrame(raf);
+          ro.disconnect();
+        };
+      }, [engine, moodRef, playingRef]);
+
+      return html`
+        <div ref=${wrapRef} className="absolute inset-0">
+          <canvas ref=${canvasRef} className="block h-full w-full" />
+        </div>`;
+    }
+
+    /* =====================================================================
+       UI
+       ===================================================================== */
+    const PlayIcon = html`<svg viewBox="0 0 24 24" className="h-6 w-6 translate-x-[1px]" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>`;
+    const PauseIcon = html`<svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>`;
+    const HeadphonesIcon = html`<svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M12 3a9 9 0 0 0-9 9v6a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-6a9 9 0 0 0-9-9z" /></svg>`;
+
+    const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+    function App() {
+      const engineRef = useRef(null);
+      if (!engineRef.current) engineRef.current = new MoodEngine();
+      const engine = engineRef.current;
+
+      const [mood, setMood] = useState(null);
+      const [playing, setPlaying] = useState(false);
+      const [volume, setVolume] = useState(0.6);
+      const [elapsed, setElapsed] = useState(0);
+      const [error, setError] = useState(null);
+
+      const moodRef = useRef(null);
+      const playingRef = useRef(false);
+      useEffect(() => { moodRef.current = mood; }, [mood]);
+      useEffect(() => { playingRef.current = playing; }, [playing]);
+
+      const start = useCallback(async () => {
+        try {
+          const p = engine.play(); // init + resume run synchronously inside the gesture
+          setPlaying(true);
+          await p;
+        } catch (e) {
+          setPlaying(false);
+          setError(e.message || String(e));
+        }
+      }, [engine]);
+
+      const selectMood = useCallback((id) => {
+        try {
+          if (id === moodRef.current && engine.playing) return;
+          engine.init();
+          engine.setMood(MOODS[id]);
+          moodRef.current = id;
+          setMood(id);
+          setElapsed(0);
+          if (!engine.playing) start();
+        } catch (e) {
+          setError(e.message || String(e));
+        }
+      }, [engine, start]);
+
+      const togglePlay = useCallback(() => {
+        if (engine.playing) {
+          engine.pause();
+          setPlaying(false);
+        } else if (!moodRef.current) {
+          selectMood("relax");
+        } else {
+          start();
+        }
+      }, [engine, selectMood, start]);
+
+      const onVolume = (e) => {
+        const v = Number(e.target.value) / 100;
+        setVolume(v);
+        engine.setVolume(v);
+      };
+
+      useEffect(() => {
+        if (!playing) return;
+        const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+        return () => clearInterval(id);
+      }, [playing]);
+
+      useEffect(() => {
+        const onKey = (e) => {
+          const tag = e.target && e.target.tagName;
+          if (tag === "INPUT" || tag === "BUTTON" || tag === "TEXTAREA") return;
+          if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+          const n = Number(e.key);
+          if (n >= 1 && n <= 5) selectMood(MOOD_ORDER[n - 1]);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, [togglePlay, selectMood]);
+
+      const m = mood ? MOODS[mood] : null;
+      const accent = m ? m.accent : "#94a3b8";
+      const glow = m ? m.glow : "#334155";
+
+      return html`
+        <div className="min-h-screen w-full transition-[background] duration-1000"
+             style=${{ background: `radial-gradient(1200px 600px at 50% -10%, ${glow}33, transparent 60%), #05030f` }}>
+          <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:py-10">
+
+            <header className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h1 className="font-display text-3xl font-black tracking-[0.2em] sm:text-4xl transition-colors duration-700"
+                    style=${{ color: accent, textShadow: `0 0 18px ${glow}` }}>MOODWAVE</h1>
+                <p className="font-mono text-xs uppercase tracking-[0.3em] text-white/40">Binaural mood synthesizer</p>
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 font-mono text-xs text-white/60">
+                ${HeadphonesIcon} Headphones required
+              </div>
+            </header>
+
+            <section className="skin rounded-[26px] border border-white/10 p-2 sm:p-3 transition-shadow duration-700"
+                     style=${{ boxShadow: `0 20px 60px -20px ${glow}, inset 0 1px 0 rgba(255,255,255,0.12)` }}>
+              <div className="flex items-center justify-between px-3 pb-2 pt-1">
+                <div className="flex gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-white/20"></span>
+                  <span className="h-2.5 w-2.5 rounded-full bg-white/20"></span>
+                  <span className="h-2.5 w-2.5 rounded-full" style=${{ background: accent, boxShadow: `0 0 8px ${glow}` }}></span>
+                </div>
+                <div className="font-display text-[10px] tracking-[0.35em] text-white/40">MOODWAVE PLAYER</div>
+                <div className="font-mono text-[11px] text-white/50">${fmt(elapsed)}</div>
+              </div>
+
+              <div className="relative h-[42vh] min-h-[240px] overflow-hidden rounded-2xl border border-black bg-black sm:h-[50vh]"
+                   style=${{ boxShadow: `inset 0 0 40px ${glow}55` }}>
+                <${Visualizer} engine=${engine} moodRef=${moodRef} playingRef=${playingRef} />
+                <div className="scanlines absolute inset-0"></div>
+                <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3 font-mono text-[11px] sm:text-xs">
+                  <div className="rounded-md bg-black/50 px-2 py-1 backdrop-blur-sm" style=${{ color: accent }}>
+                    <div className="uppercase tracking-widest">${m ? `${m.label} · ${m.band}` : "Standby"}</div>
+                    <div className="text-white/50">${m ? (playing ? "Now playing" : "Paused") : "Pick a mood to begin"}</div>
+                  </div>
+                  ${m && html`
+                    <div className="rounded-md bg-black/50 px-2 py-1 text-right text-white/70 backdrop-blur-sm">
+                      <div>L ${m.left} · R ${m.right} Hz</div>
+                      <div style=${{ color: accent }}>Δ ${m.beat} Hz${m.audio.anchor ? " + 528 Hz" : ""}</div>
+                    </div>`}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 px-2 pb-1 pt-3 sm:gap-6 sm:px-4">
+                <button onClick=${togglePlay} aria-label=${playing ? "Pause" : "Play"}
+                        className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-white/20 text-black transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        style=${{ background: `radial-gradient(circle at 35% 30%, #fff, ${accent})`, boxShadow: `0 0 24px ${glow}` }}>
+                  ${playing ? PauseIcon : PlayIcon}
+                </button>
+                <div className="flex-1">
+                  <div className="mb-2 flex justify-between font-mono text-[11px] text-white/50">
+                    <span>MASTER VOLUME</span><span>${Math.round(volume * 100)}%</span>
+                  </div>
+                  <input type="range" min="0" max="100" value=${Math.round(volume * 100)} onChange=${onVolume}
+                         aria-label="Master volume" className="vol w-full"
+                         style=${{ "--accent": accent, "--pct": `${volume * 100}%` }} />
+                </div>
+              </div>
+            </section>
+
+            <section aria-label="Moods" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              ${MOOD_ORDER.map((id, i) => {
+                const md = MOODS[id];
+                const active = mood === id;
+                return html`
+                  <button key=${id} onClick=${() => selectMood(id)} aria-pressed=${active}
+                          className=${`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br ${md.gradient} p-4 text-left transition-all duration-300 hover:-translate-y-0.5 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${id === "intimate" ? "col-span-2 sm:col-span-1" : ""} ${active ? "ring-2 ring-white/80 sm:scale-[1.03]" : "opacity-80 hover:opacity-100"}`}
+                          style=${{ boxShadow: active ? `0 0 28px ${md.glow}, inset 0 0 18px rgba(255,255,255,0.12)` : `0 0 10px ${md.glow}40` }}>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/60">${i + 1} · ${md.band} ${md.beat} Hz</div>
+                    <div className="mt-1 font-display text-lg font-bold tracking-wide sm:text-xl">${md.label}</div>
+                    <div className="mt-1 text-xs text-white/65">${md.tagline}</div>
+                    ${active && playing && html`<span className="absolute right-3 top-3 h-2 w-2 animate-ping rounded-full bg-white"></span>`}
+                  </button>`;
+              })}
+            </section>
+
+            ${error && html`<p className="rounded-lg border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">${error}</p>`}
+
+            <footer className="pb-6 text-center font-mono text-[11px] leading-relaxed text-white/35">
+              Keys 1–5 switch moods · Space plays/pauses · Keep volume low; binaural beats work at quiet levels. Not a medical device.
+            </footer>
+          </div>
+        </div>`;
+    }
+
+    createRoot(document.getElementById("root")).render(html`<${App} />`);
+  </script>
+</body>
+</html>

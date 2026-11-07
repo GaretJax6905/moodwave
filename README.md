@@ -13,7 +13,7 @@ Everything you hear is synthesized live in the browser. MoodWave plays no audio 
 ## Features
 
 - **Five moods, five sound worlds.** Each mood has its own binaural pair, chord voicing, filter movement and noise color, and switching moods crossfades between them over 2.5 seconds.
-- **It sounds like music.** The raw test tones sit under a warm, detuned, filter-swept synth pad and a bed of filtered pink noise.
+- **Real music, locked to the brainwave beat.** Each mood plays its own generative track: chords, bass, melody and (for Study, Amp Up and Intimate) drums. Every note is synthesized and scheduled on the audio clock. The tempo is a whole-number division of the binaural beat, so one musical beat always spans an exact number of beat cycles, and the music swells gently at the beat frequency itself. Tap **♪ Music** (or press `M`) for tones only.
 - **Each mood has its own visualizer.** The routines differ in motion, palette and geometry, from slow indigo ribbons to jagged molten spikes to morphing magenta-and-gold rose curves.
 - **The visuals follow the beat.** The analyser mixes the stereo signal down to mono, which makes the binaural beat appear as an amplitude envelope, so the visuals pulse at the actual beat frequency.
 - **It's built for phones too.** The canvas is DPR-aware, `ResizeObserver` resizes it smoothly, the layout adapts from mobile to desktop, and the player has touch-sized controls.
@@ -22,13 +22,13 @@ Everything you hear is synthesized live in the browser. MoodWave plays no audio 
 
 ## Moods
 
-| Mood | Left | Right | Beat | Sound | Visual |
+| Mood | Left | Right | Beat | Music | Visual |
 |------|------|-------|------|-------|--------|
-| 😴 Sleep | 150 Hz | 153 Hz | 3 Hz · Delta | Soft sine pad in D minor, dark pink noise | Slow indigo/violet ribbons and drifting motes |
-| 🌊 Relax | 150 Hz | 156 Hz | 6 Hz · Theta | Triangle Dmaj7 pad, gentle filter tide | Mirrored teal waves woven with the live waveform |
-| 🎯 Study | 150 Hz | 162 Hz | 12 Hz · Alpha | Open Dsus2 pad, brighter noise | Retro scope grid, spectrum bars, pulsing trace |
-| ⚡ Amp Up | 150 Hz | 185 Hz | 35 Hz · Gamma | Sawtooth power chord with ~130 BPM tremolo | Jagged radial spikes, lightning lines, screen shake |
-| 💗 Intimate | 150 Hz | 157.83 Hz | 7.83 Hz · Schumann | Fmaj7 pad plus a slowly swelling 528 Hz / 264 Hz layer | Morphing magenta-and-gold rose curves and sine rings |
+| 😴 Sleep | 150 Hz | 153 Hz | 3 Hz · Delta | 45 BPM (1 beat = 4 cycles): drifting bells over D minor → B♭ → F → C, deep sub-bass, no drums | Slow indigo/violet ribbons and drifting motes |
+| 🌊 Relax | 150 Hz | 156 Hz | 6 Hz · Theta | 60 BPM (6 cycles): electric-piano chords, a gentle arpeggio, soft shaker | Mirrored teal waves woven with the live waveform |
+| 🎯 Study | 150 Hz | 162 Hz | 12 Hz · Alpha | 90 BPM (8 cycles): swung lo-fi beat, jazzy 9th chords, walking bass | Retro scope grid, spectrum bars, pulsing trace |
+| ⚡ Amp Up | 150 Hz | 185 Hz | 35 Hz · Gamma | 131.25 BPM (16 cycles): synthwave four-on-the-floor, pumping bass, 16th-note arpeggio | Jagged radial spikes, lightning lines, screen shake |
+| 💗 Intimate | 150 Hz | 157.83 Hz | 7.83 Hz · Schumann | 78.3 BPM (6 cycles): slow R&B groove, strummed maj7 chords, plus the 528 Hz / 264 Hz swell | Morphing magenta-and-gold rose curves and sine rings |
 
 ## How it works
 
@@ -56,6 +56,15 @@ flowchart LR
 - **Modulation.** All of it is done with audio-rate `AudioParam` connections (LFO → gain → `filter.frequency` / `gain.gain`), so there are no JavaScript timers in the audio path.
 - **Analyser placement.** The analyser sits before master volume, so the visuals keep reacting at low volume.
 
+### Music engine
+
+- **Tuned to the carrier.** All music is tuned so that D3 is exactly 150 Hz, the left-ear tone. The chords never beat against the binaural pair.
+- **Beat-locked tempo.** `bpm = beat × 60 ÷ div`. For example, Sleep's 3 Hz delta beat ÷ 4 gives 45 BPM, and Amp Up's 35 Hz gamma beat ÷ 16 gives 131.25 BPM.
+- **The wave inside the music.** The music bus is amplitude-modulated at the binaural beat frequency (subtle for Study, deeper for Sleep). Amp Up uses sidechain "pumping" instead.
+- **Instruments.** Two-operator FM electric piano, glass bells, filtered plucks, a sine/triangle bass, a pitch-swept kick, and noise snare, rim and hats. No samples.
+- **Scheduling.** A step sequencer schedules notes 1.5 s ahead on the `AudioContext` clock, so the groove stays tight even in a background tab, where timers fire only about once a second.
+- **Reverb, music only.** A convolution reverb is applied to the music but deliberately not to the binaural tones, because reverb would blend the two ears together.
+
 ### Visualizer
 
 - Each frame, the visualizer computes band energies (bass, mid, high) from the FFT and an RMS level from the time-domain data.
@@ -80,6 +89,7 @@ flowchart LR
 |-------|--------|
 | Mood buttons / `1`–`5` | Switch mood (starts playback if stopped) |
 | Play button / `Space` | Play / pause with fade |
+| ♪ Music button / `M` | Music on, or tones only |
 | Volume slider | Master volume |
 
 ## Run locally

@@ -68,6 +68,18 @@
        ===================================================================== */
     const MOOD_ORDER = ["sleep", "relax", "study", "amp", "intimate"];
 
+    /* All music is tuned to the binaural carrier: D3 (MIDI 50) = exactly 150 Hz,
+       so the chords and the left-ear tone never rub against each other. */
+    const hz = (midi) => 150 * Math.pow(2, (midi - 50) / 12);
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const D_PENT = [62, 64, 66, 69, 71]; // D major pentatonic
+    const F_PENT = [65, 67, 69, 72, 74]; // F major pentatonic
+
+    /* Each mood's tempo is locked to its binaural beat: one musical beat lasts a
+       whole number of beat-cycles (bpm = beat Hz × 60 ÷ div). The music bus also
+       swells gently at the beat frequency itself ("trem"), so the brainwave rhythm
+       is felt in the music, not just in the raw tones. Patterns run on a
+       16-step-per-bar grid; s = step in bar, t = exact audio-clock time. */
     const MOODS = {
       sleep: {
         label: "Sleep", band: "Delta", beat: 3, left: 150, right: 153,
@@ -75,9 +87,27 @@
         gradient: "from-indigo-950 via-violet-900 to-purple-700",
         glow: "#8b5cf6", accent: "#a78bfa",
         audio: {
-          tone: 0.1, chord: [73.42, 110, 146.83, 174.61], padType: "sine",
-          pad: 0.1, cutoff: 420, sweepRate: 0.03, sweepDepth: 120,
+          tone: 0.08, chord: [38, 45, 50, 53], padType: "sine",
+          pad: 0.08, cutoff: 420, sweepRate: 0.03, sweepDepth: 120,
           noise: 0.05, noiseCutoff: 600,
+        },
+        music: {
+          div: 4, swing: 0, barsPerChord: 2, trem: 0.3, reverb: 0.6,
+          prog: [
+            { root: 38, notes: [50, 53, 57] }, // Dm
+            { root: 34, notes: [50, 53, 58] }, // Bb
+            { root: 41, notes: [48, 53, 57] }, // F
+            { root: 36, notes: [48, 52, 55] }, // C
+          ],
+          pattern(I, { s, t, chord, first, beat }) {
+            if (first) {
+              I.bass(hz(chord.root), t, 0.14, beat * 8, "sine");
+              chord.notes.forEach((n, k) => I.keys(hz(n + 12), t + k * 0.12, 0.04, 7));
+            }
+            if (s % 4 === 0 && Math.random() < 0.42) {
+              I.bell(hz(pick(chord.notes) + pick([12, 24])), t, 0.09 + Math.random() * 0.05, 5);
+            }
+          },
         },
       },
       relax: {
@@ -86,9 +116,27 @@
         gradient: "from-teal-950 via-cyan-800 to-sky-600",
         glow: "#22d3ee", accent: "#67e8f9",
         audio: {
-          tone: 0.1, chord: [73.42, 110, 185, 277.18], padType: "triangle",
-          pad: 0.08, cutoff: 850, sweepRate: 0.05, sweepDepth: 300,
+          tone: 0.08, chord: [38, 45, 54, 61], padType: "triangle",
+          pad: 0.06, cutoff: 850, sweepRate: 0.05, sweepDepth: 300,
           noise: 0.035, noiseCutoff: 1200,
+        },
+        music: {
+          div: 6, swing: 0, barsPerChord: 2, trem: 0.2, reverb: 0.45,
+          prog: [
+            { root: 38, notes: [50, 54, 57, 61] }, // Dmaj7
+            { root: 35, notes: [50, 54, 57, 59] }, // Bm7
+            { root: 43, notes: [50, 54, 55, 59] }, // Gmaj7
+            { root: 45, notes: [49, 52, 54, 57] }, // A6
+          ],
+          pattern(I, { i, s, t, chord, first, beat }) {
+            if (first) chord.notes.forEach((n, k) => I.keys(hz(n + 12), t + k * 0.05, 0.06, 6));
+            if (s === 0 || s === 8) I.bass(hz(chord.root), t, 0.13, beat * 2.2, "triangle");
+            if (s % 2 === 0 && Math.random() < 0.6) {
+              const run = [...chord.notes, ...chord.notes.map((n) => n + 12)];
+              I.bell(hz(run[(i / 2) % run.length] + 12), t, 0.06, 2.2);
+            }
+            if (s % 4 === 2) I.hat(t, 0.012, 0.05);
+          },
         },
       },
       study: {
@@ -97,9 +145,29 @@
         gradient: "from-emerald-950 via-green-800 to-lime-600",
         glow: "#34d399", accent: "#6ee7b7",
         audio: {
-          tone: 0.09, chord: [73.42, 110, 164.81, 220], padType: "triangle",
-          pad: 0.06, cutoff: 1100, sweepRate: 0.08, sweepDepth: 250,
+          tone: 0.075, chord: [38, 45, 52, 57], padType: "triangle",
+          pad: 0.045, cutoff: 1100, sweepRate: 0.08, sweepDepth: 250,
           noise: 0.025, noiseCutoff: 2500,
+        },
+        music: {
+          div: 8, swing: 0.18, barsPerChord: 1, trem: 0.1, reverb: 0.25,
+          prog: [
+            { root: 38, notes: [54, 57, 61, 64] }, // Dmaj9
+            { root: 35, notes: [50, 54, 57, 61] }, // Bm9
+            { root: 40, notes: [55, 59, 62, 66] }, // Em9
+            { root: 33, notes: [55, 59, 61, 66] }, // A13
+          ],
+          pattern(I, { s, t, chord, beat }) {
+            if (s === 0 || s === 10) I.kick(t, 0.2);
+            if (s === 4 || s === 12) I.snare(t, 0.07);
+            if (s % 2 === 0) I.hat(t, s % 4 === 2 ? 0.03 : 0.018, 0.035);
+            if (s === 0) chord.notes.forEach((n) => I.keys(hz(n), t, 0.06, beat * 1.6));
+            if (s === 6) chord.notes.forEach((n) => I.keys(hz(n), t, 0.028, beat * 0.9));
+            if (s === 0) I.bass(hz(chord.root), t, 0.14, beat * 1.4);
+            if (s === 10) I.bass(hz(chord.root), t, 0.11, beat * 0.8);
+            if (s === 14) I.bass(hz(chord.root + 7), t, 0.08, beat * 0.4);
+            if (s % 2 === 0 && Math.random() < 0.18) I.bell(hz(pick(D_PENT) + 12), t, 0.028, 1.6);
+          },
         },
       },
       amp: {
@@ -108,10 +176,27 @@
         gradient: "from-red-950 via-orange-700 to-amber-500",
         glow: "#f97316", accent: "#fdba74",
         audio: {
-          tone: 0.09, chord: [73.42, 110, 146.83, 220], padType: "sawtooth",
-          pad: 0.045, cutoff: 1600, sweepRate: 0.25, sweepDepth: 900,
+          tone: 0.075, chord: [38, 45, 50, 57], padType: "sawtooth",
+          pad: 0.04, cutoff: 1600, sweepRate: 0.25, sweepDepth: 900,
           noise: 0.02, noiseCutoff: 4000,
-          pulse: { rate: 4.333, depth: 0.45 }, // ~130 BPM eighth-note tremolo
+          duck: true, // the pad "pumps" out of the way of each kick
+        },
+        music: {
+          div: 16, swing: 0, barsPerChord: 1, trem: 0, reverb: 0.2,
+          prog: [
+            { root: 38, notes: [62, 65, 69] }, // Dm
+            { root: 34, notes: [62, 65, 70] }, // Bb
+            { root: 41, notes: [60, 65, 69] }, // F
+            { root: 36, notes: [60, 64, 67] }, // C
+          ],
+          pattern(I, { i, s, t, chord, duck }) {
+            if (s % 4 === 0) { I.kick(t, 0.26); duck(t); }
+            if (s === 4 || s === 12) I.snare(t, 0.12);
+            I.hat(t, s % 4 === 2 ? 0.05 : 0.018, s % 4 === 2 ? 0.09 : 0.03);
+            if (s % 2 === 0) I.pluck(hz(chord.root + (s % 4 === 2 ? 12 : 0)), t, 0.07, 0.16, 500);
+            const n = chord.notes[[0, 1, 2, 1][s % 4]] + (i % 8 >= 4 ? 12 : 0);
+            I.pluck(hz(n), t, 0.035, 0.12, 2200);
+          },
         },
       },
       intimate: {
@@ -120,14 +205,38 @@
         gradient: "from-fuchsia-950 via-pink-700 to-amber-400",
         glow: "#ec4899", accent: "#f9a8d4",
         audio: {
-          tone: 0.09, chord: [87.31, 130.81, 164.81, 220], padType: "triangle",
-          pad: 0.07, cutoff: 750, sweepRate: 0.04, sweepDepth: 220,
+          tone: 0.075, chord: [41, 48, 52, 57], padType: "triangle",
+          pad: 0.055, cutoff: 750, sweepRate: 0.04, sweepDepth: 220,
           noise: 0.03, noiseCutoff: 900,
           // 528 Hz anchor + 264 Hz sub-harmonic, each amplitude-swelled by a slow LFO
           anchor: { freq: 528, level: 0.03, rate: 0.07 },
         },
+        music: {
+          div: 6, swing: 0.22, barsPerChord: 1, trem: 0.18, reverb: 0.4,
+          prog: [
+            { root: 41, notes: [57, 60, 64, 65] }, // Fmaj7
+            { root: 40, notes: [55, 59, 62, 64] }, // Em7
+            { root: 38, notes: [53, 57, 60, 64] }, // Dm9
+            { root: 36, notes: [55, 59, 60, 64] }, // Cmaj7
+          ],
+          pattern(I, { s, t, chord, beat }) {
+            if (s === 0 || s === 7 || s === 10) I.kick(t, s === 0 ? 0.24 : 0.16);
+            if (s === 4 || s === 12) I.rim(t, 0.06);
+            if (s % 2 === 0) I.hat(t, 0.016, 0.03);
+            if (s === 0) chord.notes.forEach((n, k) => I.keys(hz(n), t + k * 0.035, 0.05, beat * 3));
+            if (s === 10) chord.notes.slice(1).forEach((n) => I.keys(hz(n), t, 0.025, beat * 1.2));
+            if (s === 0) I.bass(hz(chord.root), t, 0.15, beat * 1.6);
+            if (s === 7) I.bass(hz(chord.root), t, 0.1, beat * 0.7);
+            if (s === 10) I.bass(hz(chord.root + 7), t, 0.11, beat * 1.2);
+            if (s % 2 === 0 && Math.random() < 0.16) I.bell(hz(pick(F_PENT) + 12), t, 0.025, 2.4);
+          },
+        },
       },
     };
+    MOOD_ORDER.forEach((id) => {
+      const m = MOODS[id].music;
+      m.bpm = (MOODS[id].beat * 60) / m.div;
+    });
 
     /* =====================================================================
        AUDIO ENGINE (native Web Audio API)
@@ -153,6 +262,180 @@
         b6 = w * 0.115926;
       }
       return buf;
+    }
+
+    function makeWhiteNoise(ctx, seconds) {
+      const len = Math.floor(ctx.sampleRate * seconds);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      return buf;
+    }
+
+    // Stereo reverb impulse: decaying noise, slightly different in each ear.
+    function makeImpulse(ctx, seconds, decay) {
+      const len = Math.floor(ctx.sampleRate * seconds);
+      const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const d = buf.getChannelData(ch);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      }
+      return buf;
+    }
+
+    /* Synthesized instruments. Each call schedules one short-lived note at an
+       exact audio-clock time; nodes stop and get garbage-collected on their own. */
+    function makeInstruments(ctx, dest, white) {
+      const envelope = (t, vel, attack, dur) => {
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(Math.max(vel, 0.0002), t + attack);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        g.connect(dest);
+        return g;
+      };
+      const run = (src, t, dur) => { src.start(t); src.stop(t + dur + 0.05); };
+      const tone = (type, f) => {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = f;
+        return o;
+      };
+      const filter = (type, f, q = 0.7) => {
+        const b = ctx.createBiquadFilter();
+        b.type = type;
+        b.frequency.value = f;
+        b.Q.value = q;
+        return b;
+      };
+      const noise = (t, dur) => {
+        const n = ctx.createBufferSource();
+        n.buffer = white;
+        n.start(t, Math.random() * (white.duration - 0.5));
+        n.stop(t + dur + 0.05);
+        return n;
+      };
+
+      return {
+        // Glassy bell: sine plus a quiet inharmonic partial.
+        bell(f, t, vel, dur = 3) {
+          const g = envelope(t, vel, 0.005, dur);
+          const a = tone("sine", f);
+          const b = tone("sine", f * 2.756);
+          const bg = ctx.createGain();
+          bg.gain.value = 0.15;
+          a.connect(g);
+          b.connect(bg).connect(g);
+          run(a, t, dur);
+          run(b, t, dur);
+        },
+        // Electric piano: two-operator FM with a fast-decaying brightness.
+        keys(f, t, vel, dur = 1.5) {
+          const g = envelope(t, vel, 0.006, dur);
+          const lp = filter("lowpass", 2400);
+          lp.connect(g);
+          const car = tone("sine", f);
+          const mod = tone("sine", f);
+          const idx = ctx.createGain();
+          idx.gain.setValueAtTime(f * 1.2, t);
+          idx.gain.exponentialRampToValueAtTime(f * 0.05, t + 0.6);
+          mod.connect(idx).connect(car.frequency);
+          car.connect(lp);
+          run(car, t, dur);
+          run(mod, t, dur);
+        },
+        // Plucked synth: a filter "blip" that closes quickly.
+        pluck(f, t, vel, dur = 0.2, cut = 1800, type = "sawtooth") {
+          const g = envelope(t, vel, 0.003, dur);
+          const lp = filter("lowpass", cut, 2);
+          lp.frequency.setValueAtTime(cut * 3, t);
+          lp.frequency.exponentialRampToValueAtTime(cut, t + dur * 0.6);
+          lp.connect(g);
+          const o = tone(type, f);
+          o.connect(lp);
+          run(o, t, dur);
+        },
+        // Warm bass: sine body plus a filtered upper layer.
+        bass(f, t, vel, dur = 0.5, type = "triangle") {
+          const g = envelope(t, vel, 0.01, dur);
+          const lp = filter("lowpass", 500);
+          lp.connect(g);
+          const body = tone("sine", f);
+          const top = tone(type, f);
+          const tg = ctx.createGain();
+          tg.gain.value = 0.4;
+          body.connect(lp);
+          top.connect(tg).connect(lp);
+          run(body, t, dur);
+          run(top, t, dur);
+        },
+        kick(t, vel) {
+          const g = envelope(t, vel, 0.002, 0.42);
+          const o = tone("sine", 150);
+          o.frequency.setValueAtTime(150, t);
+          o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+          o.connect(g);
+          run(o, t, 0.42);
+        },
+        snare(t, vel) {
+          const g = envelope(t, vel, 0.002, 0.18);
+          noise(t, 0.18).connect(filter("bandpass", 1800, 0.8)).connect(g);
+          const body = envelope(t, vel * 0.5, 0.002, 0.1);
+          const o = tone("triangle", 190);
+          o.connect(body);
+          run(o, t, 0.1);
+        },
+        rim(t, vel) {
+          const g = envelope(t, vel, 0.001, 0.05);
+          noise(t, 0.05).connect(filter("bandpass", 3200, 1.5)).connect(g);
+          const o = tone("triangle", 1700);
+          const og = envelope(t, vel * 0.6, 0.001, 0.03);
+          o.connect(og);
+          run(o, t, 0.03);
+        },
+        hat(t, vel, len = 0.04) {
+          const g = envelope(t, vel, 0.001, len);
+          noise(t, len).connect(filter("highpass", 7000)).connect(g);
+        },
+      };
+    }
+
+    /* Step sequencer on the audio clock. It schedules notes up to LOOKAHEAD
+       seconds ahead, so timing stays exact even when the tab is in the
+       background and timers only fire about once a second. */
+    const LOOKAHEAD = 1.5;
+    const MUSIC_LEVEL = 2.6; // music sits clearly on top of the tones
+    function startMusic(engine, mood, dest, duck) {
+      const ctx = engine.ctx;
+      const m = mood.music;
+      const step = 60 / m.bpm / 4; // 16th note
+      const beat = step * 4;
+      const I = makeInstruments(ctx, dest, engine.whiteNoise);
+      const t0 = ctx.currentTime + 0.15;
+      let i = 0;
+      let alive = true;
+      const tick = () => {
+        if (!alive) return;
+        const horizon = ctx.currentTime + LOOKAHEAD;
+        for (;;) {
+          const t = t0 + i * step + (i % 2 ? m.swing * step : 0);
+          if (t > horizon) break;
+          const bar = Math.floor(i / 16);
+          const s = i % 16;
+          const chord = m.prog[Math.floor(bar / m.barsPerChord) % m.prog.length];
+          const first = s === 0 && bar % m.barsPerChord === 0;
+          m.pattern(I, { i, s, bar, t, chord, first, beat, duck });
+          i++;
+        }
+      };
+      tick();
+      const timer = setInterval(tick, 90);
+      return {
+        stop() {
+          alive = false;
+          clearInterval(timer);
+        },
+      };
     }
 
     function buildVoice(engine, mood) {
@@ -192,9 +475,9 @@
       padFilter.Q.value = 0.7;
       const padGain = gain(a.pad);
       const per = 1 / (a.chord.length * 2);
-      a.chord.forEach((f, i) => {
+      a.chord.forEach((note, i) => {
         [-1, 1].forEach((side) => {
-          const o = osc(a.padType, f);
+          const o = osc(a.padType, hz(note));
           o.detune.value = side * (6 + i * 1.5);
           const g = gain(per);
           o.connect(g);
@@ -208,11 +491,13 @@
         });
       });
       osc("sine", a.sweepRate).connect(gain(a.sweepDepth)).connect(padFilter.frequency);
-      if (a.pulse) {
-        padGain.gain.value = a.pad * (1 - a.pulse.depth / 2);
-        osc("sine", a.pulse.rate).connect(gain((a.pad * a.pulse.depth) / 2)).connect(padGain.gain);
-      }
-      padFilter.connect(padGain).connect(out);
+      const duckGain = gain(1);
+      padFilter.connect(padGain).connect(duckGain).connect(out);
+      const duck = (at) => {
+        if (!a.duck) return;
+        duckGain.gain.setValueAtTime(0.35, at);
+        duckGain.gain.linearRampToValueAtTime(1, at + 0.22);
+      };
 
       // 3) Filtered pink-noise bed
       const noise = ctx.createBufferSource();
@@ -234,9 +519,21 @@
         });
       }
 
+      // 5) Music: fades with the voice, then swells at the binaural beat rate
+      // (trem), and feeds the shared music bus (which has the reverb).
+      const musicOut = ctx.createGain();
+      musicOut.gain.setValueAtTime(0, t);
+      musicOut.gain.linearRampToValueAtTime(1, t + FADE);
+      const trem = gain(1 - mood.music.trem / 2);
+      if (mood.music.trem > 0) {
+        osc("sine", mood.beat).connect(gain(mood.music.trem / 2)).connect(trem.gain);
+      }
+      musicOut.connect(trem).connect(engine.musicBus);
+
       sources.forEach((s) =>
         s === noise ? s.start(t, Math.random() * noise.buffer.duration) : s.start(t)
       );
+      const music = startMusic(engine, mood, musicOut, duck);
 
       return {
         stop() {
@@ -244,10 +541,17 @@
           out.gain.cancelScheduledValues(now);
           out.gain.setValueAtTime(out.gain.value, now);
           out.gain.linearRampToValueAtTime(0, now + FADE);
+          music.stop();
+          musicOut.gain.cancelScheduledValues(now);
+          musicOut.gain.setValueAtTime(musicOut.gain.value, now);
+          musicOut.gain.linearRampToValueAtTime(0, now + FADE);
           sources.forEach((s) => {
             try { s.stop(now + FADE + 0.05); } catch (_) {}
           });
-          sources[0].onended = () => out.disconnect();
+          sources[0].onended = () => {
+            out.disconnect();
+            trem.disconnect();
+          };
         },
       };
     }
@@ -257,6 +561,7 @@
         this.ctx = null;
         this.voice = null;
         this.volume = 0.6;
+        this.musicOn = true;
         this.playing = false;
         this.suspendTimer = null;
       }
@@ -290,12 +595,33 @@
         limiter.connect(ctx.destination);
 
         this.noiseBuffer = makePinkNoise(ctx, 8);
+        this.whiteNoise = makeWhiteNoise(ctx, 2);
+
+        // Shared music bus with a convolution reverb. The binaural tones skip
+        // the reverb on purpose: it would blend the two ears together.
+        this.musicBus = ctx.createGain();
+        this.musicBus.gain.value = this.musicOn ? MUSIC_LEVEL : 0;
+        this.reverb = ctx.createConvolver();
+        this.reverb.buffer = makeImpulse(ctx, 3.2, 2.6);
+        this.wet = ctx.createGain();
+        this.wet.gain.value = 0.3;
+        this.musicBus.connect(this.mix);
+        this.musicBus.connect(this.reverb);
+        this.reverb.connect(this.wet);
+        this.wet.connect(this.mix);
+      }
+
+      setMusic(on) {
+        this.musicOn = on;
+        if (!this.ctx) return;
+        this.musicBus.gain.setTargetAtTime(on ? MUSIC_LEVEL : 0, this.ctx.currentTime, 0.15);
       }
 
       setMood(mood) {
         this.init();
         if (this.voice) this.voice.stop();
         this.voice = buildVoice(this, mood);
+        this.wet.gain.setTargetAtTime(mood.music.reverb, this.ctx.currentTime, 0.8);
       }
 
       setVolume(v) {
@@ -673,6 +999,7 @@
       const [mood, setMood] = useState(null);
       const [playing, setPlaying] = useState(false);
       const [volume, setVolume] = useState(0.6);
+      const [musicOn, setMusicOn] = useState(true);
       const [elapsed, setElapsed] = useState(0);
       const [error, setError] = useState(null);
 
@@ -717,6 +1044,12 @@
         }
       }, [engine, selectMood, start]);
 
+      const toggleMusic = () => {
+        const on = !musicOn;
+        setMusicOn(on);
+        engine.setMusic(on);
+      };
+
       const onVolume = (e) => {
         const v = Number(e.target.value) / 100;
         setVolume(v);
@@ -734,12 +1067,13 @@
           const tag = e.target && e.target.tagName;
           if (tag === "INPUT" || tag === "BUTTON" || tag === "TEXTAREA") return;
           if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+          if (e.key === "m" || e.key === "M") toggleMusic();
           const n = Number(e.key);
           if (n >= 1 && n <= 5) selectMood(MOOD_ORDER[n - 1]);
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-      }, [togglePlay, selectMood]);
+      }, [togglePlay, selectMood, toggleMusic]);
 
       const m = mood ? MOODS[mood] : null;
       const accent = m ? m.accent : "#94a3b8";
@@ -786,6 +1120,7 @@
                     <div className="rounded-md bg-black/50 px-2 py-1 text-right text-white/70 backdrop-blur-sm">
                       <div>L ${m.left} · R ${m.right} Hz</div>
                       <div style=${{ color: accent }}>Δ ${m.beat} Hz${m.audio.anchor ? " + 528 Hz" : ""}</div>
+                      ${musicOn && html`<div className="text-white/50">♪ ${Math.round(m.music.bpm * 10) / 10} BPM · 1 beat = ${m.music.div} cycles</div>`}
                     </div>`}
                 </div>
               </div>
@@ -804,6 +1139,12 @@
                          aria-label="Master volume" className="vol w-full"
                          style=${{ "--accent": accent, "--pct": `${volume * 100}%` }} />
                 </div>
+                <button onClick=${toggleMusic} aria-pressed=${musicOn}
+                        title=${musicOn ? "Music on: tap for tones only" : "Tones only: tap to add music"}
+                        className="shrink-0 rounded-full border px-3 py-2 font-mono text-[11px] uppercase tracking-widest transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        style=${{ borderColor: musicOn ? accent : "rgba(255,255,255,0.15)", color: musicOn ? accent : "rgba(255,255,255,0.5)", boxShadow: musicOn ? `0 0 14px ${glow}55` : "none" }}>
+                  ${musicOn ? "♪ Music" : "Tones"}
+                </button>
               </div>
             </section>
 
@@ -826,7 +1167,7 @@
             ${error && html`<p className="rounded-lg border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">${error}</p>`}
 
             <footer className="pb-6 text-center font-mono text-[11px] leading-relaxed text-white/35">
-              Keys 1–5 switch moods · Space plays/pauses · Keep volume low; binaural beats work at quiet levels. Not a medical device.
+              Keys 1–5 switch moods · Space plays/pauses · M toggles music · Keep volume low; binaural beats work at quiet levels. Not a medical device.
             </footer>
           </div>
         </div>`;

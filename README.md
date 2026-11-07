@@ -2,7 +2,7 @@
 
 **A binaural-beat mood synthesizer with a retro, neon Windows Media Player–style visualizer, built as a single HTML file with React, Tailwind CSS and the native Web Audio API.**
 
-**Live demo:** https://moodwave.onrender.com
+**Live demo:** https://moodwave-zuqu.onrender.com
 
 Everything you hear is synthesized live in the browser. MoodWave plays no audio files. Every tone, pad, noise bed and swell is generated in real time by a Web Audio node graph, and a Canvas visualizer reads that same signal back through an `AnalyserNode` and draws it at 60 fps.
 
@@ -95,7 +95,7 @@ Open it through a local server rather than `file://`, because browsers restrict 
 
 ## Deploy
 
-`render.yaml` defines a Render **static site** with no build step and the repo root as the publish directory. Every push to `main` redeploys automatically.
+`render.yaml` defines a Render **static site**. The build step just copies `index.html` into `site/`, so only the app is published, not the README or config. Every push to `main` redeploys automatically.
 
 ## Project structure
 

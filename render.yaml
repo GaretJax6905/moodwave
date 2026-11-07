@@ -2,6 +2,6 @@ services:
   - type: web
     name: moodwave
     runtime: static
-    buildCommand: echo "No build step"
-    staticPublishPath: .
+    buildCommand: mkdir -p site && cp index.html site/
+    staticPublishPath: site
     autoDeploy: true

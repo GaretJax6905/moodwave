@@ -106,6 +106,10 @@ moodwave/
 └── README.md
 ```
 
+## How I worked
+
+I designed MoodWave's spec myself: the five moods, the exact binaural frequency pairs, the layered pad-and-noise sound, and a visual direction for each mood. I built it with Claude (an AI coding assistant) as a pair programmer, then tested it myself, by ear with headphones, before shipping.
+
 ## A note on the science
 
 MoodWave is ambient sound design, not a medical device. Research on binaural beats affecting mood or focus is mixed. The 528 Hz "Solfeggio" and Schumann-resonance associations are cultural and folk traditions rather than established science. Keep the volume low, and don't use it while driving.
@@ -114,4 +118,6 @@ MoodWave is ambient sound design, not a medical device. Research on binaural bea
 
 **Thomas Moylan** · [@GaretJax6905](https://github.com/GaretJax6905)
 
-IT student at NJIT building a front-end portfolio. See also [RPS Chaos](https://github.com/GaretJax6905/rps-chaos).
+IT student at NJIT, building toward front-end engineering.
+
+More projects: [RPS Chaos](https://github.com/GaretJax6905/rps-chaos) (boss-rush RPS with a learning AI and online play) · [Neon Swarm](https://github.com/GaretJax6905/neon-swarm) (Canvas arena shooter) · [Plaque Attack](https://github.com/GaretJax6905/plaque-attack) (educational dental game)
